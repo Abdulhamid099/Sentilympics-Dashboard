@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, RefreshCw, Zap, FileJson, FileSpreadsheet } from 'lucide-react';
+import { BarChart3, RefreshCw, Zap, ArrowRight, Download } from 'lucide-react';
 import { analyzeReviews } from './services/geminiService';
 import { SentimentChart } from './components/SentimentChart';
 import { WordCloud } from './components/WordCloud';
@@ -48,7 +48,7 @@ const App: React.FC = () => {
       const result = await analyzeReviews(reviews);
       setAnalysis(result);
     } catch (err: any) {
-      setError("Failed to analyze reviews. Please check your API key and try again.");
+      setError("Failed to analyze reviews. Please check your API key.");
       console.error(err);
     } finally {
       setIsAnalyzing(false);
@@ -67,178 +67,103 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `sentilympics_analysis_${new Date().toISOString().slice(0,10)}.json`;
-    document.body.appendChild(a);
+    a.download = `analysis.json`;
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExportCSV = () => {
-    if (!analysis) return;
-    
-    // Helper to escape CSV fields
-    const escape = (text: string | number) => {
-      const str = String(text);
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-
-    let csvContent = "EXECUTIVE SUMMARY\n";
-    csvContent += `Overview,${escape(analysis.summary.overview)}\n\n`;
-    
-    csvContent += "ACTIONABLE AREAS\n";
-    csvContent += "Title,Priority,Description\n";
-    analysis.summary.actionableAreas.forEach(area => {
-      csvContent += `${escape(area.title)},${escape(area.priority)},${escape(area.description)}\n`;
-    });
-    csvContent += "\n";
-
-    csvContent += "SENTIMENT TREND DATA\n";
-    csvContent += "Date,Sentiment,Snippet\n";
-    analysis.sentimentTrend.forEach(item => {
-      csvContent += `${escape(item.date)},${escape(item.sentiment)},${escape(item.snippet)}\n`;
-    });
-    csvContent += "\n";
-
-    csvContent += "WORD CLOUD DATA\n";
-    csvContent += "Term,Type,Frequency\n";
-    analysis.wordCloud.forEach(item => {
-      csvContent += `${escape(item.text)},${escape(item.type)},${escape(item.value)}\n`;
-    });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sentilympics_analysis_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 pb-20">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-indigo-600 p-2 rounded-lg">
-              <BarChart3 className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-neutral-50 text-neutral-900 pb-20 font-sans selection:bg-neutral-200">
+      {/* Minimal Header */}
+      <header className="pt-8 pb-6">
+        <div className="max-w-5xl mx-auto px-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-neutral-900 rounded-full flex items-center justify-center">
+              <BarChart3 className="w-4 h-4 text-white" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-gray-900">Sentilympics Dashboard</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Sentilympics</h1>
           </div>
-          <div className="text-sm text-gray-500 hidden sm:block">
-            Powered by Gemini 3 Pro (Thinking Mode)
-          </div>
+          <button 
+            onClick={loadDemo} 
+            className="text-sm text-neutral-400 hover:text-neutral-900 transition-colors"
+          >
+            Load Demo
+          </button>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-5xl mx-auto px-6">
         
-        {/* Input Section */}
-        <section className="mb-10">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex justify-between items-end mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-800">Raw Reviews Input</h2>
-                <p className="text-sm text-gray-500 mt-1">Paste a batch of unstructured customer feedback below.</p>
-              </div>
-              <button 
-                onClick={loadDemo}
-                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-              >
-                Load Demo Data
-              </button>
-            </div>
-            
+        {/* Input Section - Clean Paper Look */}
+        <section className="mb-12">
+          <div className="bg-white rounded-2xl shadow-sm p-2 transition-shadow hover:shadow-md duration-300">
             <textarea
-              className="w-full h-32 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono text-sm resize-y"
-              placeholder="Paste reviews here (e.g., 'Love the new feature! - Oct 12' ... 'The app keeps crashing. - Oct 14')"
+              className="w-full h-40 p-6 rounded-xl text-neutral-700 placeholder:text-neutral-300 focus:outline-none resize-y text-base"
+              placeholder="Paste your customer reviews here to begin analysis..."
               value={reviews}
               onChange={(e) => setReviews(e.target.value)}
             />
-            
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-xs text-gray-400">
-                Supports massive text blocks. Analysis uses extended thinking budget (32k).
+            <div className="flex justify-between items-center px-4 pb-2">
+              <div className="text-xs text-neutral-300 font-medium px-2">
+                Gemini 3 Pro
               </div>
               <button
                 onClick={handleAnalyze}
                 disabled={isAnalyzing || !reviews.trim()}
                 className={`
-                  flex items-center gap-2 px-6 py-2.5 rounded-lg text-white font-medium shadow-md transition-all
+                  flex items-center gap-2 px-6 py-3 rounded-full font-medium text-sm transition-all
                   ${isAnalyzing || !reviews.trim() 
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg active:scale-95'}
+                    ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' 
+                    : 'bg-neutral-900 text-white hover:bg-neutral-800 hover:scale-[1.02]'}
                 `}
               >
                 {isAnalyzing ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    Deep Thinking...
-                  </>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
-                    <Zap className="w-5 h-5 fill-current" />
-                    Analyze Insights
+                    Analyze <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
             </div>
-            {error && (
-              <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200">
-                {error}
-              </div>
-            )}
           </div>
+          {error && (
+            <div className="mt-4 text-center text-sm text-red-500">
+              {error}
+            </div>
+          )}
         </section>
 
         {/* Results Dashboard */}
         {analysis && (
-          <div className="space-y-6 animate-fade-in">
-            {/* Results Header with Export Buttons */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 pb-4">
-              <h2 className="text-2xl font-bold text-gray-800">Analysis Results</h2>
-              <div className="flex gap-3">
-                <button 
-                  onClick={handleExportJSON}
-                  className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-indigo-600 transition-colors shadow-sm"
-                  title="Export full analysis as JSON"
-                >
-                  <FileJson className="w-4 h-4" />
-                  Export JSON
-                </button>
-                <button 
-                  onClick={handleExportCSV}
-                  className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-indigo-600 transition-colors shadow-sm"
-                  title="Export analysis as CSV"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  Export CSV
-                </button>
-              </div>
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            
+            {/* Header & Actions */}
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-4">
+              <h2 className="text-2xl font-light tracking-tight">Insights Report</h2>
+              <button 
+                onClick={handleExportJSON}
+                className="p-2 text-neutral-400 hover:text-neutral-900 transition-colors"
+                title="Download JSON"
+              >
+                <Download className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Top Row: Chart & Word Cloud */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Visuals Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
               <SentimentChart data={analysis.sentimentTrend} />
               <WordCloud words={analysis.wordCloud} />
             </div>
 
-            {/* Bottom Row: Executive Summary */}
+            {/* Summary */}
             <ExecutiveSummary data={analysis.summary} />
           </div>
         )}
 
         {!analysis && !isAnalyzing && (
-          <div className="text-center py-20 opacity-50">
-            <BarChart3 className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-            <h3 className="text-xl font-medium text-gray-400">Ready to analyze</h3>
-            <p className="text-gray-400">Paste your reviews above to generate the report.</p>
+          <div className="text-center py-20">
+            <p className="text-neutral-300 text-sm font-light">Waiting for input data...</p>
           </div>
         )}
       </main>
