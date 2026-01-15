@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BarChart3, RefreshCw, Zap, ArrowRight, Download } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { BarChart3, RefreshCw, Zap, ArrowRight, Download, Upload, Database } from 'lucide-react';
 import { analyzeReviews } from './services/geminiService';
 import { SentimentChart } from './components/SentimentChart';
 import { WordCloud } from './components/WordCloud';
@@ -38,6 +38,7 @@ const App: React.FC = () => {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAnalyze = async () => {
     if (!reviews.trim()) return;
@@ -58,6 +59,22 @@ const App: React.FC = () => {
   const loadDemo = () => {
     setReviews("Paste your own reviews here...\n\n(Demo data loaded below)");
     setAnalysis(DEMO_DATA);
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      // If it looks like a CSV, we might want to do some simple preprocessing,
+      // but Gemini is good at raw text, so just dumping it is often best.
+      setReviews(text);
+    };
+    reader.readAsText(file);
+    // Reset input
+    event.target.value = '';
   };
 
   const handleExportJSON = () => {
@@ -83,12 +100,18 @@ const App: React.FC = () => {
             </div>
             <h1 className="text-lg font-semibold tracking-tight">Sentilympics</h1>
           </div>
-          <button 
-            onClick={loadDemo} 
-            className="text-sm text-neutral-400 hover:text-neutral-900 transition-colors"
-          >
-            Load Demo
-          </button>
+          <div className="flex items-center gap-4">
+             <a href="#" className="hidden sm:flex items-center gap-1 text-xs font-medium text-neutral-500 hover:text-neutral-900">
+                <Database className="w-3 h-3" />
+                Connect Data Source
+             </a>
+             <button 
+              onClick={loadDemo} 
+              className="text-sm text-neutral-400 hover:text-neutral-900 transition-colors"
+            >
+              Load Demo
+            </button>
+          </div>
         </div>
       </header>
 
@@ -96,17 +119,43 @@ const App: React.FC = () => {
         
         {/* Input Section - Clean Paper Look */}
         <section className="mb-12">
-          <div className="bg-white rounded-2xl shadow-sm p-2 transition-shadow hover:shadow-md duration-300">
+          <div className="bg-white rounded-2xl shadow-sm p-2 transition-shadow hover:shadow-md duration-300 relative group">
             <textarea
-              className="w-full h-40 p-6 rounded-xl text-neutral-700 placeholder:text-neutral-300 focus:outline-none resize-y text-base"
-              placeholder="Paste your customer reviews here to begin analysis..."
+              className="w-full h-40 p-6 rounded-xl text-neutral-700 placeholder:text-neutral-300 focus:outline-none resize-y text-base font-mono leading-relaxed"
+              placeholder="Paste raw reviews or upload a CSV/Text file from your database..."
               value={reviews}
               onChange={(e) => setReviews(e.target.value)}
             />
-            <div className="flex justify-between items-center px-4 pb-2">
-              <div className="text-xs text-neutral-300 font-medium px-2">
-                Gemini 3 Pro
+            
+            {/* File Drop Overlay Hint (Visual only for now, functionality via button) */}
+            {!reviews && (
+               <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <span className="bg-neutral-900/5 text-neutral-400 px-4 py-2 rounded-full text-xs backdrop-blur-sm">
+                    Supports CSV, JSON, TXT
+                  </span>
+               </div>
+            )}
+
+            <div className="flex justify-between items-center px-4 pb-2 mt-2">
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
+                  title="Upload CSV or Text file"
+                >
+                  <Upload className="w-3 h-3" />
+                  Import File
+                </button>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileUpload} 
+                  accept=".csv,.txt,.json,.md" 
+                  className="hidden" 
+                />
+                <span className="text-[10px] text-neutral-300 uppercase tracking-widest font-semibold">Gemini 3 Pro</span>
               </div>
+
               <button
                 onClick={handleAnalyze}
                 disabled={isAnalyzing || !reviews.trim()}
@@ -118,7 +167,10 @@ const App: React.FC = () => {
                 `}
               >
                 {isAnalyzing ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Thinking...</span>
+                  </>
                 ) : (
                   <>
                     Analyze <ArrowRight className="w-4 h-4" />
