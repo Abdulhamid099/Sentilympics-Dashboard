@@ -160,13 +160,12 @@ export const ChatBot: React.FC<Props> = ({ contextData }) => {
         <MessageCircle className="w-6 h-6" />
       </button>
 
-      {/* Chat Panel */}
+      {/* Chat Panel - Responsive: Full screen on mobile, card on desktop */}
       <div 
-        className={`fixed bottom-6 right-6 w-[450px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col transition-all duration-300 transform z-50 ${isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
-        style={{ height: '600px' }}
+        className={`fixed bottom-0 right-0 sm:bottom-6 sm:right-6 w-full sm:w-[450px] h-[100dvh] sm:h-[600px] bg-white sm:rounded-2xl shadow-2xl border border-gray-200 flex flex-col transition-all duration-300 transform z-50 ${isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b bg-indigo-600 rounded-t-2xl text-white">
+        <div className="flex items-center justify-between p-4 border-b bg-indigo-600 sm:rounded-t-2xl text-white shrink-0">
           <div className="flex items-center gap-2">
             <Bot className="w-5 h-5" />
             <h3 className="font-semibold">CX Assistant & Analyst</h3>
@@ -227,7 +226,7 @@ export const ChatBot: React.FC<Props> = ({ contextData }) => {
         </div>
 
         {/* Input */}
-        <div className="p-3 border-t bg-white rounded-b-2xl">
+        <div className="p-3 border-t bg-white sm:rounded-b-2xl shrink-0 safe-area-bottom">
           <div className="flex items-center gap-2">
             <input 
               type="text" 

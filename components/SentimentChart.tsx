@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { ReviewPoint } from '../types';
 import { ArrowUpDown } from 'lucide-react';
@@ -23,11 +23,13 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export const SentimentChart: React.FC<Props> = ({ data }) => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  const sortedData = [...data].sort((a, b) => {
-    const dateA = new Date(a.date).getTime();
-    const dateB = new Date(b.date).getTime();
-    return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
-  });
+  const sortedData = useMemo(() => {
+    return [...data].sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+  }, [data, sortOrder]);
 
   const toggleSort = () => {
     setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');

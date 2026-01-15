@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, Upload, RefreshCw, Zap, FileJson, FileSpreadsheet, Download } from 'lucide-react';
+import { BarChart3, RefreshCw, Zap, FileJson, FileSpreadsheet } from 'lucide-react';
 import { analyzeReviews } from './services/geminiService';
 import { SentimentChart } from './components/SentimentChart';
 import { WordCloud } from './components/WordCloud';
