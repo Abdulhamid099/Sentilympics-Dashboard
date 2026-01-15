@@ -1,0 +1,5 @@
+{
+  "name": "Sentilympics Dashboard",
+  "description": "A comprehensive customer sentiment analysis tool. Visualizes trends, keyword frequencies, and actionable AI-driven insights from raw customer reviews using Gemini 3 Pro with Thinking Mode and Gemini 3 Flash with Google Search.",
+  "requestFramePermissions": []
+}
