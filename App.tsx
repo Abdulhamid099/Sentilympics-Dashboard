@@ -39,15 +39,9 @@ const App: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const trimmedReviews = reviews.trim();
-  const wordCount = trimmedReviews ? trimmedReviews.split(/\s+/).length : 0;
-  const lineCount = trimmedReviews
-    ? reviews.split(/\r?\n/).filter((line) => line.trim().length > 0).length
-    : 0;
-  const charCount = reviews.length;
 
   const handleAnalyze = async () => {
-    if (!trimmedReviews) return;
+    if (!reviews.trim()) return;
     
     setIsAnalyzing(true);
     setError(null);
@@ -164,10 +158,10 @@ const App: React.FC = () => {
 
               <button
                 onClick={handleAnalyze}
-                disabled={isAnalyzing || !trimmedReviews}
+                disabled={isAnalyzing || !reviews.trim()}
                 className={`
                   flex items-center gap-2 px-6 py-3 rounded-full font-medium text-sm transition-all
-                  ${isAnalyzing || !trimmedReviews 
+                  ${isAnalyzing || !reviews.trim() 
                     ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' 
                     : 'bg-neutral-900 text-white hover:bg-neutral-800 hover:scale-[1.02]'}
                 `}
@@ -183,22 +177,6 @@ const App: React.FC = () => {
                   </>
                 )}
               </button>
-            </div>
-            <div className="px-4 pb-3">
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-neutral-400">
-                <span className="rounded-full border border-neutral-100 px-2.5 py-1">
-                  {wordCount.toLocaleString()} words
-                </span>
-                <span className="rounded-full border border-neutral-100 px-2.5 py-1">
-                  {lineCount.toLocaleString()} lines
-                </span>
-                <span className="rounded-full border border-neutral-100 px-2.5 py-1">
-                  {charCount.toLocaleString()} characters
-                </span>
-                <span className="rounded-full bg-neutral-900/5 px-2.5 py-1 text-neutral-500">
-                  {trimmedReviews ? 'Ready to analyze' : 'Paste reviews to begin'}
-                </span>
-              </div>
             </div>
           </div>
           {error && (
