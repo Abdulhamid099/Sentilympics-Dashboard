@@ -49,7 +49,13 @@ const App: React.FC = () => {
       const result = await analyzeReviews(reviews);
       setAnalysis(result);
     } catch (err: any) {
-      setError("Failed to analyze reviews. Please check your API key.");
+      const message = err?.message || String(err) || "Failed to analyze reviews.";
+      // If the error references the API key, make the message more actionable.
+      if (message.toLowerCase().includes('api key')) {
+        setError(message + ' For local testing set `window.__API_KEY` or `process.env.API_KEY`, or set `VITE_API_KEY` at build time.');
+      } else {
+        setError(message);
+      }
       console.error(err);
     } finally {
       setIsAnalyzing(false);
