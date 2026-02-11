@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation: in 0.7s ease forwards;
+}
+
+.fade-in {
+  animation-name: in;
+}
+
+.slide-in-from-bottom-4 {
+  --tw-translate-y: 1rem;
+}
