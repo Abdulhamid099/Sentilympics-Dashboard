@@ -1,13 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { BarChart3, RefreshCw, Zap, ArrowRight, Download, Upload, Database } from 'lucide-react';
+import { BarChart3, RefreshCw, ArrowRight, Download, Upload, Database, AlertCircle } from 'lucide-react';
 import { analyzeReviews } from './services/geminiService';
 import { SentimentChart } from './components/SentimentChart';
 import { WordCloud } from './components/WordCloud';
 import { ExecutiveSummary } from './components/ExecutiveSummary';
 import { ChatBot } from './components/ChatBot';
 import { AnalysisResult } from './types';
+import { getWaitTimeMinutes } from './utils/rateLimiter';
 
-// Placeholder data for initial state
 const DEMO_DATA: AnalysisResult = {
   sentimentTrend: [
     { date: '2023-10-01', sentiment: 65, snippet: "Great start" },
@@ -24,11 +24,9 @@ const DEMO_DATA: AnalysisResult = {
     { text: "quality", value: 15, type: "praise" },
   ],
   summary: {
-    overview: "Overall customer sentiment has shown volatility over the last month. While users appreciate the product's ease of use and shipping speed, significant concerns regarding stability and pricing persist.",
+    overview: "Overall customer sentiment has shown volatility over the last month.",
     actionableAreas: [
-      { title: "Stabilize Application", description: "Address the crash reports from early October immediately.", priority: "High" },
-      { title: "Review Pricing Strategy", description: "Many users mention 'expensive'. Consider a lower tier or discount codes.", priority: "Medium" },
-      { title: "Support Training", description: "Support response times are a recurring pain point.", priority: "Medium" },
+      { title: "Stabilize Application", description: "Address the crash reports.", priority: "High" },
     ]
   }
 };
@@ -49,12 +47,11 @@ const App: React.FC = () => {
       const result = await analyzeReviews(reviews);
       setAnalysis(result);
     } catch (err: any) {
-      const message = err?.message || String(err) || "Failed to analyze reviews.";
-      // If the error references the API key, make the message more actionable.
-      if (message.toLowerCase().includes('api key')) {
-        setError(message + ' For local testing set `window.__API_KEY` or `process.env.API_KEY`, or set `VITE_API_KEY` at build time.');
+      if (err.message.startsWith('RATE_LIMIT_EXCEEDED')) {
+        const resetTime = parseInt(err.message.split('|')[1]);
+        setError(`Rate limit reached. Please wait ${getWaitTimeMinutes(resetTime)}.`);
       } else {
-        setError(message);
+        setError("Failed to analyze reviews. Please try again.");
       }
       console.error(err);
     } finally {
@@ -62,31 +59,18 @@ const App: React.FC = () => {
     }
   };
 
-  const loadDemo = () => {
-    setReviews("Paste your own reviews here...\n\n(Demo data loaded below)");
-    setAnalysis(DEMO_DATA);
-  };
-
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      // If it looks like a CSV, we might want to do some simple preprocessing,
-      // but Gemini is good at raw text, so just dumping it is often best.
-      setReviews(text);
-    };
+    reader.onload = (e) => setReviews(e.target?.result as string);
     reader.readAsText(file);
-    // Reset input
     event.target.value = '';
   };
 
   const handleExportJSON = () => {
     if (!analysis) return;
-    const dataStr = JSON.stringify(analysis, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(analysis, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -97,7 +81,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 pb-20 font-sans selection:bg-neutral-200">
-      {/* Minimal Header */}
       <header className="pt-8 pb-6">
         <div className="max-w-5xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -107,14 +90,7 @@ const App: React.FC = () => {
             <h1 className="text-lg font-semibold tracking-tight">Sentilympics</h1>
           </div>
           <div className="flex items-center gap-4">
-             <a href="#" className="hidden sm:flex items-center gap-1 text-xs font-medium text-neutral-500 hover:text-neutral-900">
-                <Database className="w-3 h-3" />
-                Connect Data Source
-             </a>
-             <button 
-              onClick={loadDemo} 
-              className="text-sm text-neutral-400 hover:text-neutral-900 transition-colors"
-            >
+             <button onClick={() => setAnalysis(DEMO_DATA)} className="text-sm text-neutral-400 hover:text-neutral-900 transition-colors">
               Load Demo
             </button>
           </div>
@@ -122,106 +98,57 @@ const App: React.FC = () => {
       </header>
 
       <main className="max-w-5xl mx-auto px-6">
-        
-        {/* Input Section - Clean Paper Look */}
         <section className="mb-12">
           <div className="bg-white rounded-2xl shadow-sm p-2 transition-shadow hover:shadow-md duration-300 relative group">
             <textarea
               className="w-full h-40 p-6 rounded-xl text-neutral-700 placeholder:text-neutral-300 focus:outline-none resize-y text-base font-mono leading-relaxed"
-              placeholder="Paste raw reviews or upload a CSV/Text file from your database..."
+              placeholder="Paste reviews or upload data..."
               value={reviews}
               onChange={(e) => setReviews(e.target.value)}
             />
             
-            {/* File Drop Overlay Hint (Visual only for now, functionality via button) */}
-            {!reviews && (
-               <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                  <span className="bg-neutral-900/5 text-neutral-400 px-4 py-2 rounded-full text-xs backdrop-blur-sm">
-                    Supports CSV, JSON, TXT
-                  </span>
-               </div>
-            )}
-
             <div className="flex justify-between items-center px-4 pb-2 mt-2">
               <div className="flex items-center gap-3">
                 <button 
                   onClick={() => fileInputRef.current?.click()}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
-                  title="Upload CSV or Text file"
                 >
                   <Upload className="w-3 h-3" />
                   Import File
                 </button>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileUpload} 
-                  accept=".csv,.txt,.json,.md" 
-                  className="hidden" 
-                />
-                <span className="text-[10px] text-neutral-300 uppercase tracking-widest font-semibold">Gemini 3 Pro</span>
+                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".csv,.txt,.json" className="hidden" />
               </div>
 
               <button
                 onClick={handleAnalyze}
                 disabled={isAnalyzing || !reviews.trim()}
-                className={`
-                  flex items-center gap-2 px-6 py-3 rounded-full font-medium text-sm transition-all
-                  ${isAnalyzing || !reviews.trim() 
-                    ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' 
-                    : 'bg-neutral-900 text-white hover:bg-neutral-800 hover:scale-[1.02]'}
-                `}
+                className={`flex items-center gap-2 px-6 py-3 rounded-full font-medium text-sm transition-all ${
+                  isAnalyzing || !reviews.trim() ? 'bg-neutral-100 text-neutral-400' : 'bg-neutral-900 text-white hover:bg-neutral-800'
+                }`}
               >
-                {isAnalyzing ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Thinking...</span>
-                  </>
-                ) : (
-                  <>
-                    Analyze <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
+                {isAnalyzing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <>Analyze <ArrowRight className="w-4 h-4" /></>}
               </button>
             </div>
           </div>
           {error && (
-            <div className="mt-4 text-center text-sm text-red-500">
+            <div className="mt-4 flex items-center justify-center gap-2 text-xs text-rose-500 bg-rose-50 py-2 rounded-lg animate-pulse">
+              <AlertCircle className="w-3 h-3" />
               {error}
             </div>
           )}
         </section>
 
-        {/* Results Dashboard */}
         {analysis && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            
-            {/* Header & Actions */}
             <div className="flex items-center justify-between border-b border-neutral-100 pb-4">
               <h2 className="text-2xl font-light tracking-tight">Insights Report</h2>
-              <button 
-                onClick={handleExportJSON}
-                className="p-2 text-neutral-400 hover:text-neutral-900 transition-colors"
-                title="Download JSON"
-              >
-                <Download className="w-5 h-5" />
-              </button>
+              <button onClick={handleExportJSON} className="p-2 text-neutral-400 hover:text-neutral-900"><Download className="w-5 h-5" /></button>
             </div>
-
-            {/* Visuals Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
               <SentimentChart data={analysis.sentimentTrend} />
               <WordCloud words={analysis.wordCloud} />
             </div>
-
-            {/* Summary */}
             <ExecutiveSummary data={analysis.summary} />
-          </div>
-        )}
-
-        {!analysis && !isAnalyzing && (
-          <div className="text-center py-20">
-            <p className="text-neutral-300 text-sm font-light">Waiting for input data...</p>
           </div>
         )}
       </main>
