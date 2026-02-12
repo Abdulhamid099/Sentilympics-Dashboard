@@ -1,26 +1,8 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { AnalysisResult } from "../types";
+import { checkRateLimit } from "../utils/rateLimiter";
 
-// Helper to resolve API key from multiple environments:
-// 1. Vite-style `import.meta.env.VITE_API_KEY`
-// 2. `process.env.API_KEY` (may be shimed in index.html)
-// 3. `window.__API_KEY` (explicit global)
-const getApiKey = (): string | undefined => {
-  const fromImportMeta = (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_API_KEY : undefined);
-  const fromProcessEnv = (typeof process !== 'undefined' ? (process as any).env?.API_KEY : undefined);
-  const fromWindow = (typeof window !== 'undefined' ? (window as any).__API_KEY || (window as any).API_KEY || (window as any).process?.env?.API_KEY : undefined);
-  return fromImportMeta || fromProcessEnv || fromWindow;
-};
-
-const getAI = (): GoogleGenAI => {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error(
-      "API Key is missing. Set VITE_API_KEY at build time or provide window.__API_KEY / process.env.API_KEY for local development."
-    );
-  }
-  return new GoogleGenAI({ apiKey });
-};
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const analysisSchema: Schema = {
   type: Type.OBJECT,
@@ -75,8 +57,17 @@ const analysisSchema: Schema = {
 };
 
 export const analyzeReviews = async (rawText: string): Promise<AnalysisResult> => {
+  if (!process.env.API_KEY) {
+    throw new Error("API Key is missing.");
+  }
+
+  // Rate limit: 5 analyses per 10 minutes
+  const limit = checkRateLimit('analysis', 5, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    throw new Error(`RATE_LIMIT_EXCEEDED|${limit.resetTime}`);
+  }
+
   try {
-    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: `Analyze the following customer reviews. If dates are missing, infer a realistic timeline for the trend chart. Identify key sentiment trends, frequent complaints/praises, and actionable insights.
@@ -94,7 +85,7 @@ export const analyzeReviews = async (rawText: string): Promise<AnalysisResult> =
 
     const jsonText = response.text;
     if (!jsonText) throw new Error("No response from AI");
-
+    
     return JSON.parse(jsonText.trim()) as AnalysisResult;
   } catch (error) {
     console.error("Analysis failed:", error);
@@ -115,7 +106,6 @@ export const createChatSession = (contextData?: AnalysisResult) => {
     Provide concise, professional answers about CX strategy.`;
   }
 
-  const ai = getAI();
   return ai.chats.create({
     model: 'gemini-3-flash-preview',
     config: {
