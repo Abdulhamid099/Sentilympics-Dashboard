@@ -1,32 +1,50 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { AlertCircle, ExternalLink, Loader2, MessageCircle, Send, X } from 'lucide-react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { createChatSession } from '../services/geminiService';
-import { ChatMessage, AnalysisResult, Source } from '../types';
-import { MessageCircle, X, Send, Loader2, ExternalLink, AlertCircle } from 'lucide-react';
+import type { AnalysisResult, ChatMessage, Source } from '../types';
 import { checkRateLimit, getWaitTimeMinutes } from '../utils/rateLimiter';
 
 interface Props {
   contextData?: AnalysisResult;
 }
 
-export const ChatBot: React.FC<Props> = React.memo(({ contextData }) => {
+interface GroundingChunk {
+  web?: {
+    title: string;
+    uri: string;
+  };
+}
+
+interface ChatResponse {
+  text?: string;
+  candidates?: Array<{
+    groundingMetadata?: {
+      groundingChunks?: GroundingChunk[];
+    };
+  }>;
+}
+
+const welcomeMessage = (hasContext: boolean): ChatMessage => ({
+  id: 'welcome',
+  role: 'model',
+  text: hasContext
+    ? 'Analyst ready. How can I help with these results?'
+    : 'Hello. I can help analyze CX data or trends.',
+  timestamp: new Date(),
+});
+
+const ChatBotComponent = ({ contextData }: Props) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const chatSessionRef = useRef<any>(null);
+  const chatSessionRef = useRef<ReturnType<typeof createChatSession> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatSessionRef.current = createChatSession(contextData);
-    setMessages([{
-      id: 'welcome',
-      role: 'model',
-      text: contextData 
-        ? "Analyst ready. How can I help with these results?"
-        : "Hello. I can help analyze CX data or trends.",
-      timestamp: new Date()
-    }]);
+    setMessages([welcomeMessage(Boolean(contextData))]);
   }, [contextData]);
 
   useEffect(() => {
@@ -34,42 +52,53 @@ export const ChatBot: React.FC<Props> = React.memo(({ contextData }) => {
   }, [messages, isOpen]);
 
   const handleSend = async () => {
-    if (!inputText.trim() || isLoading) return;
+    if (!inputText.trim() || isLoading || !chatSessionRef.current) {
+      return;
+    }
+
     setError(null);
 
-    // Rate limit: 15 messages per 5 minutes
     const limit = checkRateLimit('chat', 15, 5 * 60 * 1000);
     if (!limit.allowed) {
       setError(`Rate limit reached. Try again in ${getWaitTimeMinutes(limit.resetTime)}.`);
       return;
     }
 
-    const userMsg: ChatMessage = {
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
       text: inputText,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((previous) => [...previous, userMessage]);
     setInputText('');
     setIsLoading(true);
 
     try {
-      const response = await chatSessionRef.current.sendMessage({ message: userMsg.text });
-      const sources: Source[] = response.candidates?.[0]?.groundingMetadata?.groundingChunks
-        ?.map((chunk: any) => chunk.web ? { title: chunk.web.title, uri: chunk.web.uri } : null)
-        .filter((s: any) => s) || [];
+      const response = (await chatSessionRef.current.sendMessage({
+        message: userMessage.text,
+      })) as ChatResponse;
 
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'model',
-        text: response.text || "I couldn't generate a response.",
-        timestamp: new Date(),
-        sources
-      }]);
-    } catch (err) {
-      setError("Communication lost. Please refresh.");
+      const sources: Source[] =
+        response.candidates?.[0]?.groundingMetadata?.groundingChunks
+          ?.map((chunk) => chunk.web)
+          .filter((web): web is NonNullable<GroundingChunk['web']> => Boolean(web))
+          .map(({ title, uri }) => ({ title, uri })) ?? [];
+
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: `${Date.now()}-model`,
+          role: 'model',
+          text: response.text ?? "I couldn't generate a response.",
+          timestamp: new Date(),
+          sources,
+        },
+      ]);
+    } catch (caughtError) {
+      console.error(caughtError);
+      setError('Communication lost. Please refresh.');
     } finally {
       setIsLoading(false);
     }
@@ -78,64 +107,105 @@ export const ChatBot: React.FC<Props> = React.memo(({ contextData }) => {
   return (
     <>
       <button
+        className={`fixed bottom-8 right-8 z-50 rounded-full bg-neutral-900 p-4 text-white shadow-lg transition-all ${
+          isOpen ? 'hidden' : 'flex'
+        }`}
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-8 right-8 p-4 bg-neutral-900 text-white rounded-full shadow-lg transition-all z-50 ${isOpen ? 'hidden' : 'flex'}`}
+        type="button"
       >
-        <MessageCircle className="w-5 h-5" />
+        <MessageCircle className="h-5 w-5" />
       </button>
 
-      <div 
-        className={`fixed bottom-0 right-0 sm:bottom-8 sm:right-8 w-full sm:w-[400px] h-[100dvh] sm:h-[550px] bg-white sm:rounded-xl shadow-2xl border border-neutral-100 flex flex-col transition-all duration-300 z-50 ${isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
+      <div
+        className={`fixed bottom-0 right-0 z-50 flex h-[100dvh] w-full translate-y-10 flex-col border border-neutral-100 bg-white opacity-0 shadow-2xl transition-all duration-300 sm:bottom-8 sm:right-8 sm:h-[550px] sm:w-[400px] sm:rounded-xl ${
+          isOpen ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none'
+        }`}
       >
-        <div className="flex items-center justify-between p-4 border-b border-neutral-100">
+        <div className="flex items-center justify-between border-b border-neutral-100 p-4">
           <h3 className="text-sm font-semibold">AI Analyst</h3>
-          <button onClick={() => setIsOpen(false)} className="text-neutral-400 hover:text-neutral-900"><X className="w-4 h-4" /></button>
+          <button
+            className="text-neutral-400 hover:text-neutral-900"
+            onClick={() => setIsOpen(false)}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-              <div className={`max-w-[85%] text-sm leading-relaxed ${msg.role === 'user' ? 'bg-neutral-100 px-4 py-2 rounded-2xl' : 'text-neutral-600'}`}>
-                {msg.text}
+        <div className="scrollbar-hide flex-1 space-y-6 overflow-y-auto p-4">
+          {messages.map((message) => (
+            <div
+              className={`flex flex-col ${
+                message.role === 'user' ? 'items-end' : 'items-start'
+              }`}
+              key={message.id}
+            >
+              <div
+                className={`max-w-[85%] text-sm leading-relaxed ${
+                  message.role === 'user'
+                    ? 'rounded-2xl bg-neutral-100 px-4 py-2'
+                    : 'text-neutral-600'
+                }`}
+              >
+                {message.text}
               </div>
-              {msg.sources && msg.sources.length > 0 && (
-                <div className="mt-2 pl-1 space-y-1">
-                  {msg.sources.map((s, i) => (
-                    <a key={i} href={s.uri} target="_blank" className="flex items-center gap-1 text-[10px] text-blue-500"><ExternalLink className="w-3 h-3" />{s.title}</a>
+              {message.sources && message.sources.length > 0 && (
+                <div className="mt-2 space-y-1 pl-1">
+                  {message.sources.map((source, index) => (
+                    <a
+                      className="flex items-center gap-1 text-[10px] text-blue-500"
+                      href={source.uri}
+                      key={`${source.uri}-${index}`}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      {source.title}
+                    </a>
                   ))}
                 </div>
               )}
             </div>
           ))}
-          {isLoading && <Loader2 className="w-4 h-4 animate-spin text-neutral-300" />}
+
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin text-neutral-300" />}
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-4 bg-white border-t border-neutral-100">
+        <div className="border-t border-neutral-100 bg-white p-4">
           {error && (
-            <div className="mb-2 p-2 bg-rose-50 text-rose-500 text-[10px] rounded flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" /> {error}
+            <div className="mb-2 flex items-center gap-1 rounded bg-rose-50 p-2 text-[10px] text-rose-500">
+              <AlertCircle className="h-3 w-3" />
+              {error}
             </div>
           )}
-          <div className="flex items-center gap-2 bg-neutral-50 px-3 py-2 rounded-full">
-            <input 
-              type="text" 
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Ask about trends..."
+
+          <div className="flex items-center gap-2 rounded-full bg-neutral-50 px-3 py-2">
+            <input
               className="flex-1 bg-transparent text-sm focus:outline-none"
+              onChange={(event) => setInputText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  void handleSend();
+                }
+              }}
+              placeholder="Ask about trends..."
+              type="text"
+              value={inputText}
             />
-            <button 
-              onClick={handleSend}
+            <button
+              className="rounded-full bg-neutral-900 p-1.5 text-white disabled:opacity-20"
               disabled={isLoading || !inputText.trim()}
-              className="p-1.5 bg-neutral-900 text-white rounded-full disabled:opacity-20"
+              onClick={() => void handleSend()}
+              type="button"
             >
-              <Send className="w-3 h-3" />
+              <Send className="h-3 w-3" />
             </button>
           </div>
         </div>
       </div>
     </>
   );
-});
+};
+
+export const ChatBot = memo(ChatBotComponent);
