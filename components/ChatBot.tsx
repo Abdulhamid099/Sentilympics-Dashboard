@@ -18,15 +18,27 @@ export const ChatBot: React.FC<Props> = React.memo(({ contextData }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    chatSessionRef.current = createChatSession(contextData);
-    setMessages([{
-      id: 'welcome',
-      role: 'model',
-      text: contextData 
-        ? "Analyst ready. How can I help with these results?"
-        : "Hello. I can help analyze CX data or trends.",
-      timestamp: new Date()
-    }]);
+    try {
+      chatSessionRef.current = createChatSession(contextData);
+      setMessages([{
+        id: 'welcome',
+        role: 'model',
+        text: contextData 
+          ? "Analyst ready. How can I help with these results?"
+          : "Hello. I can help analyze CX data or trends.",
+        timestamp: new Date()
+      }]);
+      setError(null);
+    } catch (err) {
+      chatSessionRef.current = null;
+      setMessages([{
+        id: 'welcome',
+        role: 'model',
+        text: 'Set GEMINI_API_KEY in .env.local to enable chat.',
+        timestamp: new Date()
+      }]);
+      setError('AI chat is unavailable until GEMINI_API_KEY is configured.');
+    }
   }, [contextData]);
 
   useEffect(() => {
@@ -34,7 +46,7 @@ export const ChatBot: React.FC<Props> = React.memo(({ contextData }) => {
   }, [messages, isOpen]);
 
   const handleSend = async () => {
-    if (!inputText.trim() || isLoading) return;
+    if (!inputText.trim() || isLoading || !chatSessionRef.current) return;
     setError(null);
 
     // Rate limit: 15 messages per 5 minutes
