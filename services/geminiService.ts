@@ -2,7 +2,16 @@ import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { AnalysisResult } from "../types";
 import { checkRateLimit } from "../utils/rateLimiter";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getApiKey = () => process.env.API_KEY?.trim();
+
+const getAiClient = () => {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error("API Key is missing. Add GEMINI_API_KEY to your .env.local file and restart the dev server.");
+  }
+
+  return new GoogleGenAI({ apiKey });
+};
 
 const analysisSchema: Schema = {
   type: Type.OBJECT,
@@ -57,9 +66,7 @@ const analysisSchema: Schema = {
 };
 
 export const analyzeReviews = async (rawText: string): Promise<AnalysisResult> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key is missing.");
-  }
+  const ai = getAiClient();
 
   // Rate limit: 5 analyses per 10 minutes
   const limit = checkRateLimit('analysis', 5, 10 * 60 * 1000);
@@ -94,6 +101,7 @@ export const analyzeReviews = async (rawText: string): Promise<AnalysisResult> =
 };
 
 export const createChatSession = (contextData?: AnalysisResult) => {
+  const ai = getAiClient();
   let systemInstruction = "You are a helpful customer experience analyst assistant. You have access to Google Search to provide real-time information.";
   
   if (contextData) {
