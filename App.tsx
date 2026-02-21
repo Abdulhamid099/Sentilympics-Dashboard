@@ -1,12 +1,13 @@
-import { AlertCircle, ArrowRight, BarChart3, Download, RefreshCw, Upload } from 'lucide-react';
-import { useRef, useState, type ChangeEvent } from 'react';
-import { ChatBot } from './components/ChatBot';
-import { ExecutiveSummary } from './components/ExecutiveSummary';
-import { SentimentChart } from './components/SentimentChart';
-import { WordCloud } from './components/WordCloud';
+import { AlertCircle, ArrowRight, BarChart3, RefreshCw, Upload } from 'lucide-react';
+import { lazy, Suspense, useCallback, useRef, useState, type ChangeEvent } from 'react';
 import { analyzeReviews } from './services/geminiService';
 import type { AnalysisResult } from './types';
 import { getWaitTimeMinutes } from './utils/rateLimiter';
+
+const InsightsReport = lazy(() =>
+  import('./components/InsightsReport').then((m) => ({ default: m.InsightsReport })),
+);
+const ChatBot = lazy(() => import('./components/ChatBot').then((m) => ({ default: m.ChatBot })));
 
 const DEMO_DATA: AnalysisResult = {
   sentimentTrend: [
@@ -59,8 +60,8 @@ const App = () => {
 
   const hasReviews = reviews.trim().length > 0;
 
-  const handleAnalyze = async () => {
-    if (!hasReviews) {
+  const handleAnalyze = useCallback(async () => {
+    if (!reviews.trim()) {
       return;
     }
 
@@ -76,9 +77,9 @@ const App = () => {
     } finally {
       setIsAnalyzing(false);
     }
-  };
+  }, [reviews]);
 
-  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -89,9 +90,9 @@ const App = () => {
     reader.onload = (loadEvent) => setReviews(String(loadEvent.target?.result ?? ''));
     reader.readAsText(file);
     event.target.value = '';
-  };
+  }, []);
 
-  const handleExportJSON = () => {
+  const handleExportJSON = useCallback(() => {
     if (!analysis) {
       return;
     }
@@ -106,7 +107,7 @@ const App = () => {
     anchor.download = 'analysis.json';
     anchor.click();
     URL.revokeObjectURL(url);
-  };
+  }, [analysis]);
 
   return (
     <div className="min-h-screen bg-neutral-50 pb-20 font-sans text-neutral-900 selection:bg-neutral-200">
@@ -188,27 +189,21 @@ const App = () => {
         </section>
 
         {analysis && (
-          <div className="animate-in slide-in-from-bottom-4 fade-in space-y-12 duration-700">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-4">
-              <h2 className="text-2xl font-light tracking-tight">Insights Report</h2>
-              <button
-                className="p-2 text-neutral-400 hover:text-neutral-900"
-                onClick={handleExportJSON}
-                type="button"
-              >
-                <Download className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-              <SentimentChart data={analysis.sentimentTrend} />
-              <WordCloud words={analysis.wordCloud} />
-            </div>
-            <ExecutiveSummary data={analysis.summary} />
-          </div>
+          <Suspense
+            fallback={
+              <div className="flex min-h-[400px] items-center justify-center text-sm text-neutral-400">
+                Loading insights…
+              </div>
+            }
+          >
+            <InsightsReport analysis={analysis} onExportJSON={handleExportJSON} />
+          </Suspense>
         )}
       </main>
 
-      <ChatBot contextData={analysis ?? undefined} />
+      <Suspense fallback={null}>
+        <ChatBot contextData={analysis ?? undefined} />
+      </Suspense>
     </div>
   );
 };
