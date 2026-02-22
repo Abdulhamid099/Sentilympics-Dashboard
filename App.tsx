@@ -1,6 +1,7 @@
 import { AlertCircle, ArrowRight, BarChart3, RefreshCw, Upload } from 'lucide-react';
 import { lazy, Suspense, useCallback, useRef, useState, type ChangeEvent } from 'react';
 import { analyzeReviews } from './services/geminiService';
+import { analyzeReviewsWithGPT } from './services/openaiService';
 import type { AnalysisResult } from './types';
 import { getWaitTimeMinutes } from './utils/rateLimiter';
 
@@ -38,7 +39,9 @@ const DEMO_DATA: AnalysisResult = {
 
 const RATE_LIMIT_PREFIX = 'RATE_LIMIT_EXCEEDED';
 
-const parseAnalyzeError = (error: unknown): string => {
+type AnalysisModel = 'gemini' | 'gpt';
+
+const parseAnalyzeError = (error: unknown, model: AnalysisModel): string => {
   if (error instanceof Error && error.message.startsWith(RATE_LIMIT_PREFIX)) {
     const [, resetTimeValue] = error.message.split('|');
     const resetTime = Number.parseInt(resetTimeValue ?? '', 10);
@@ -48,12 +51,17 @@ const parseAnalyzeError = (error: unknown): string => {
     }
   }
 
+  if (error instanceof Error && model === 'gpt' && error.message.includes('OpenAI API Key')) {
+    return 'OpenAI API key is missing. Add OPENAI_API_KEY to your .env file for GPT analysis.';
+  }
+
   return 'Failed to analyze reviews. Please try again.';
 };
 
 const App = () => {
   const [reviews, setReviews] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analysisModel, setAnalysisModel] = useState<AnalysisModel>('gpt');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -68,16 +76,18 @@ const App = () => {
     setIsAnalyzing(true);
     setError(null);
 
+    const analyze = analysisModel === 'gpt' ? analyzeReviewsWithGPT : analyzeReviews;
+
     try {
-      const result = await analyzeReviews(reviews);
+      const result = await analyze(reviews);
       setAnalysis(result);
     } catch (caughtError) {
-      setError(parseAnalyzeError(caughtError));
+      setError(parseAnalyzeError(caughtError, analysisModel));
       console.error(caughtError);
     } finally {
       setIsAnalyzing(false);
     }
-  }, [reviews]);
+  }, [reviews, analysisModel]);
 
   const handleFileUpload = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -141,6 +151,15 @@ const App = () => {
 
             <div className="mt-2 flex items-center justify-between px-4 pb-2">
               <div className="flex items-center gap-3">
+                <select
+                  className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 focus:border-neutral-400 focus:outline-none"
+                  value={analysisModel}
+                  onChange={(e) => setAnalysisModel(e.target.value as AnalysisModel)}
+                  aria-label="Analysis model"
+                >
+                  <option value="gpt">GPT-4o (smarter analysis)</option>
+                  <option value="gemini">Gemini</option>
+                </select>
                 <button
                   className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
                   onClick={() => fileInputRef.current?.click()}

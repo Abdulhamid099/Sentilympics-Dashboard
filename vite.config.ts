@@ -12,7 +12,8 @@ export default defineConfig(({ mode }) => {
       plugins: [react()],
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        'process.env.OPENAI_API_KEY': JSON.stringify(env.OPENAI_API_KEY ?? '')
       },
       resolve: {
         alias: {
@@ -34,6 +35,9 @@ export default defineConfig(({ mode }) => {
               }
               if (id.includes('node_modules/@google/genai')) {
                 return 'genai';
+              }
+              if (id.includes('node_modules/openai')) {
+                return 'openai';
               }
               if (id.includes('node_modules/lucide-react')) {
                 return 'lucide';
