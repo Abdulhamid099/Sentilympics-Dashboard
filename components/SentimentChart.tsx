@@ -30,7 +30,7 @@ interface CustomTooltipProps {
   label?: string;
 }
 
-const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
+const CustomTooltip = memo(({ active, payload, label }: CustomTooltipProps) => {
   if (!active || !payload?.length) {
     return null;
   }
@@ -44,7 +44,8 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
       <div className="mt-1 max-w-[150px] truncate text-neutral-400">"{payload[0].payload.snippet}"</div>
     </div>
   );
-};
+});
+CustomTooltip.displayName = 'CustomTooltip';
 
 const SentimentChartComponent = ({ data }: Props) => {
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
@@ -101,7 +102,7 @@ const SentimentChartComponent = ({ data }: Props) => {
             <ReferenceLine stroke="#e5e5e5" y={0} />
             <Line
               activeDot={{ r: 4, fill: '#171717', strokeWidth: 0 }}
-              animationDuration={1000}
+              animationDuration={300}
               dataKey="sentiment"
               dot={false}
               stroke="#171717"

@@ -12,12 +12,43 @@ export default defineConfig(({ mode }) => {
       plugins: [react()],
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        'process.env.OPENAI_API_KEY': JSON.stringify(env.OPENAI_API_KEY ?? '')
       },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: (id) => {
+              if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
+                return 'react-vendor';
+              }
+              if (id.includes('node_modules/recharts/')) {
+                return 'recharts';
+              }
+              if (id.includes('node_modules/d3-') || id.includes('node_modules/d3/')) {
+                return 'd3';
+              }
+              if (id.includes('node_modules/@google/genai')) {
+                return 'genai';
+              }
+              if (id.includes('node_modules/openai')) {
+                return 'openai';
+              }
+              if (id.includes('node_modules/lucide-react')) {
+                return 'lucide';
+              }
+            },
+            chunkFileNames: 'assets/[name]-[hash].js',
+            entryFileNames: 'assets/[name]-[hash].js',
+            assetFileNames: 'assets/[name]-[hash][extname]',
+          },
+        },
+        chunkSizeWarningLimit: 600,
+      },
     };
 });

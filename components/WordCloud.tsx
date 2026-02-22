@@ -1,4 +1,4 @@
-import * as d3 from 'd3';
+import { min, max, scaleLinear } from 'd3';
 import { memo, useMemo } from 'react';
 import type { WordFrequency } from '../types';
 
@@ -12,11 +12,11 @@ const WordCloudComponent = ({ words }: Props) => {
       return [];
     }
 
-    const minValue = d3.min(words, (word) => word.value) ?? 0;
-    const maxValue = d3.max(words, (word) => word.value) ?? 10;
+    const minValue = min(words, (word) => word.value) ?? 0;
+    const maxValue = max(words, (word) => word.value) ?? 10;
 
-    const sizeScale = d3.scaleLinear().domain([minValue, maxValue]).range([14, 42]);
-    const opacityScale = d3.scaleLinear().domain([minValue, maxValue]).range([0.4, 1]);
+    const sizeScale = scaleLinear().domain([minValue, maxValue]).range([14, 42]);
+    const opacityScale = scaleLinear().domain([minValue, maxValue]).range([0.4, 1]);
 
     return words.map((word) => ({
       ...word,

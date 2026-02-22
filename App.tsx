@@ -1,12 +1,14 @@
-import { AlertCircle, ArrowRight, BarChart3, Download, RefreshCw, Upload } from 'lucide-react';
-import { useRef, useState, type ChangeEvent } from 'react';
-import { ChatBot } from './components/ChatBot';
-import { ExecutiveSummary } from './components/ExecutiveSummary';
-import { SentimentChart } from './components/SentimentChart';
-import { WordCloud } from './components/WordCloud';
+import { AlertCircle, ArrowRight, BarChart3, RefreshCw, Upload } from 'lucide-react';
+import { lazy, Suspense, useCallback, useRef, useState, type ChangeEvent } from 'react';
 import { analyzeReviews } from './services/geminiService';
+import { analyzeReviewsWithGPT } from './services/openaiService';
 import type { AnalysisResult } from './types';
 import { getWaitTimeMinutes } from './utils/rateLimiter';
+
+const InsightsReport = lazy(() =>
+  import('./components/InsightsReport').then((m) => ({ default: m.InsightsReport })),
+);
+const ChatBot = lazy(() => import('./components/ChatBot').then((m) => ({ default: m.ChatBot })));
 
 const DEMO_DATA: AnalysisResult = {
   sentimentTrend: [
@@ -37,7 +39,9 @@ const DEMO_DATA: AnalysisResult = {
 
 const RATE_LIMIT_PREFIX = 'RATE_LIMIT_EXCEEDED';
 
-const parseAnalyzeError = (error: unknown): string => {
+type AnalysisModel = 'gemini' | 'gpt';
+
+const parseAnalyzeError = (error: unknown, model: AnalysisModel): string => {
   if (error instanceof Error && error.message.startsWith(RATE_LIMIT_PREFIX)) {
     const [, resetTimeValue] = error.message.split('|');
     const resetTime = Number.parseInt(resetTimeValue ?? '', 10);
@@ -47,38 +51,45 @@ const parseAnalyzeError = (error: unknown): string => {
     }
   }
 
+  if (error instanceof Error && model === 'gpt' && error.message.includes('OpenAI API Key')) {
+    return 'OpenAI API key is missing. Add OPENAI_API_KEY to your .env file for GPT analysis.';
+  }
+
   return 'Failed to analyze reviews. Please try again.';
 };
 
 const App = () => {
   const [reviews, setReviews] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analysisModel, setAnalysisModel] = useState<AnalysisModel>('gpt');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasReviews = reviews.trim().length > 0;
 
-  const handleAnalyze = async () => {
-    if (!hasReviews) {
+  const handleAnalyze = useCallback(async () => {
+    if (!reviews.trim()) {
       return;
     }
 
     setIsAnalyzing(true);
     setError(null);
 
+    const analyze = analysisModel === 'gpt' ? analyzeReviewsWithGPT : analyzeReviews;
+
     try {
-      const result = await analyzeReviews(reviews);
+      const result = await analyze(reviews);
       setAnalysis(result);
     } catch (caughtError) {
-      setError(parseAnalyzeError(caughtError));
+      setError(parseAnalyzeError(caughtError, analysisModel));
       console.error(caughtError);
     } finally {
       setIsAnalyzing(false);
     }
-  };
+  }, [reviews, analysisModel]);
 
-  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -89,9 +100,9 @@ const App = () => {
     reader.onload = (loadEvent) => setReviews(String(loadEvent.target?.result ?? ''));
     reader.readAsText(file);
     event.target.value = '';
-  };
+  }, []);
 
-  const handleExportJSON = () => {
+  const handleExportJSON = useCallback(() => {
     if (!analysis) {
       return;
     }
@@ -106,7 +117,7 @@ const App = () => {
     anchor.download = 'analysis.json';
     anchor.click();
     URL.revokeObjectURL(url);
-  };
+  }, [analysis]);
 
   return (
     <div className="min-h-screen bg-neutral-50 pb-20 font-sans text-neutral-900 selection:bg-neutral-200">
@@ -140,6 +151,15 @@ const App = () => {
 
             <div className="mt-2 flex items-center justify-between px-4 pb-2">
               <div className="flex items-center gap-3">
+                <select
+                  className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 focus:border-neutral-400 focus:outline-none"
+                  value={analysisModel}
+                  onChange={(e) => setAnalysisModel(e.target.value as AnalysisModel)}
+                  aria-label="Analysis model"
+                >
+                  <option value="gpt">GPT-4o (smarter analysis)</option>
+                  <option value="gemini">Gemini</option>
+                </select>
                 <button
                   className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
                   onClick={() => fileInputRef.current?.click()}
@@ -188,27 +208,21 @@ const App = () => {
         </section>
 
         {analysis && (
-          <div className="animate-in slide-in-from-bottom-4 fade-in space-y-12 duration-700">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-4">
-              <h2 className="text-2xl font-light tracking-tight">Insights Report</h2>
-              <button
-                className="p-2 text-neutral-400 hover:text-neutral-900"
-                onClick={handleExportJSON}
-                type="button"
-              >
-                <Download className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-              <SentimentChart data={analysis.sentimentTrend} />
-              <WordCloud words={analysis.wordCloud} />
-            </div>
-            <ExecutiveSummary data={analysis.summary} />
-          </div>
+          <Suspense
+            fallback={
+              <div className="flex min-h-[400px] items-center justify-center text-sm text-neutral-400">
+                Loading insights…
+              </div>
+            }
+          >
+            <InsightsReport analysis={analysis} onExportJSON={handleExportJSON} />
+          </Suspense>
         )}
       </main>
 
-      <ChatBot contextData={analysis ?? undefined} />
+      <Suspense fallback={null}>
+        <ChatBot contextData={analysis ?? undefined} />
+      </Suspense>
     </div>
   );
 };
