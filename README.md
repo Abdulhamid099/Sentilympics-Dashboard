@@ -15,6 +15,15 @@ View your app in AI Studio: https://ai.studio/apps/drive/1olLQmZU4xBtEN05sLL72GW
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Set the `API_KEY` environment variable to your Gemini API key (for Gemini model)
+3. Optionally, set the `OPENAI_API_KEY` environment variable to your OpenAI API key (for GPT model)
+4. Run the app:
    `npm run dev`
+
+## Features
+
+- Sentiment analysis of customer reviews using AI models
+- Support for both Gemini (Google) and GPT (OpenAI) models
+- Interactive dashboard with charts and word clouds
+- AI-powered chatbot for insights and analysis
+- Rate limiting and caching for performance
