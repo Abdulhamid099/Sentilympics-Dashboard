@@ -5,6 +5,7 @@ import { ExecutiveSummary } from './components/ExecutiveSummary';
 import { SentimentChart } from './components/SentimentChart';
 import { WordCloud } from './components/WordCloud';
 import { analyzeReviews } from './services/geminiService';
+import { analyzeReviewsGPT } from './services/openaiService';
 import type { AnalysisResult } from './types';
 import { getWaitTimeMinutes } from './utils/rateLimiter';
 
@@ -55,6 +56,7 @@ const App = () => {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [model, setModel] = useState<'gemini' | 'gpt'>('gemini');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasReviews = reviews.trim().length > 0;
@@ -68,7 +70,7 @@ const App = () => {
     setError(null);
 
     try {
-      const result = await analyzeReviews(reviews);
+      const result = model === 'gpt' ? await analyzeReviewsGPT(reviews) : await analyzeReviews(reviews);
       setAnalysis(result);
     } catch (caughtError) {
       setError(parseAnalyzeError(caughtError));
@@ -147,8 +149,14 @@ const App = () => {
                 >
                   <Upload className="h-3 w-3" />
                   Import File
-                </button>
-                <input
+                </button>                <select
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value as 'gemini' | 'gpt')}
+                >
+                  <option value="gemini">Gemini</option>
+                  <option value="gpt">GPT</option>
+                </select>                <input
                   accept=".csv,.txt,.json"
                   className="hidden"
                   onChange={handleFileUpload}
@@ -208,7 +216,7 @@ const App = () => {
         )}
       </main>
 
-      <ChatBot contextData={analysis ?? undefined} />
+      <ChatBot contextData={analysis ?? undefined} model={model} />
     </div>
   );
 };
