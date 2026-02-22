@@ -1,11 +1,13 @@
 import { AlertCircle, ExternalLink, Loader2, MessageCircle, Send, X } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { createChatSession } from '../services/geminiService';
+import { createChatSessionGPT } from '../services/openaiService';
 import type { AnalysisResult, ChatMessage, Source } from '../types';
 import { checkRateLimit, getWaitTimeMinutes } from '../utils/rateLimiter';
 
 interface Props {
   contextData?: AnalysisResult;
+  model?: 'gemini' | 'gpt';
 }
 
 interface GroundingChunk {
@@ -33,7 +35,7 @@ const welcomeMessage = (hasContext: boolean): ChatMessage => ({
   timestamp: new Date(),
 });
 
-const ChatBotComponent = ({ contextData }: Props) => {
+const ChatBotComponent = ({ contextData, model = 'gemini' }: Props) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -43,9 +45,9 @@ const ChatBotComponent = ({ contextData }: Props) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    chatSessionRef.current = createChatSession(contextData);
+    chatSessionRef.current = model === 'gpt' ? createChatSessionGPT(contextData) : createChatSession(contextData);
     setMessages([welcomeMessage(Boolean(contextData))]);
-  }, [contextData]);
+  }, [contextData, model]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
